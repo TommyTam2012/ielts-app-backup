@@ -4,14 +4,140 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedExamId, setSelectedExamId] = useState("");
+  const [question, setQuestion] = useState("");
+  const [response, setResponse] = useState("");
+  const [history, setHistory] = useState([]);
 
   const handleLogin = () => {
     if (username && password) {
       setLoggedIn(true);
     } else {
-      alert("请输入用户名和密码。");
+      alert("\u8bf7\u8f93\u5165\u7528\u6237\u540d\u548c\u5bc6\u7801\u3002");
     }
   };
+
+  const exams = [
+    { id: "ielts01", label: "\ud83d\udcd8 IELTS Academic Reading 1", pdf: "/exams/ielts/ielts01.pdf" },
+    { id: "ielts02", label: "\ud83d\udcd8 IELTS Academic Reading 2", pdf: "/exams/ielts/ielts02.pdf" },
+  ];
+
+  const detectLang = (text) => /[\u4e00-\u9fa5]/.test(text) ? "zh-CN" : "en-GB";
+
+  const getVoiceForLang = (lang) => {
+    const voices = window.speechSynthesis.getVoices();
+    return voices.find(v => v.lang === lang) ||
+           voices.find(v => v.name.includes(lang === "zh-CN" ? "\u666e\u901a\u8bdd" : "UK English Female"));
+  };
+
+  const speakMixed = (text) => {
+    const segments = text.split(/(?<=[\u3002.!?])/).map(s => s.trim()).filter(Boolean);
+    let index = 0;
+    const speakNext = () => {
+      if (index >= segments.length) return;
+      const segment = segments[index++];
+      const utter = new SpeechSynthesisUtterance(segment);
+      const lang = detectLang(segment);
+      utter.lang = lang;
+      utter.voice = getVoiceForLang(lang);
+      utter.rate = 1;
+      utter.onend = speakNext;
+      speechSynthesis.speak(utter);
+    };
+    speechSynthesis.cancel();
+    speakNext();
+  };
+
+  const handleSubmit = async () => {
+    if (!question || !selectedExamId) {
+      alert("\u26a0\ufe0f Please enter a question and select an exam.");
+      return;
+    }
+
+    setResponse("Analyzing with GPT-4o, please wait...");
+
+    const totalPages = 13;
+    const messages = [
+      {
+        type: "text",
+        text: `You are an IELTS Academic Reading instructor. The student is working on test ${selectedExamId.toUpperCase()}. If they ask about a question (e.g., \"Q5\" or \"paragraph B\"), find the answer from the reading passage images and respond in academic English. Focus on the exact question asked. Do not summarize the passage unless requested.`,
+      },
+      { type: "text", text: question }
+    ];
+
+    for (let i = 1; i <= totalPages; i++) {
+      const url = `${window.location.origin}/exams/ielts/${selectedExamId}_page${i}.png`;
+      messages.push({ type: "image_url", image_url: { url } });
+    }
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: question, messages }),
+      });
+
+      const data = await res.json();
+      const english = data.response || "No response.";
+      const translated = data.translated || "\u65e0\u4e2d\u6587\u7ffb\u8bd1\u3002";
+
+      const final = `${english}\n\n\ud83c\udde8\ud83c\uddf3 \u4e2d\u6587\u7ffb\u8bd1\uff1a${translated}`;
+      setResponse(final);
+      setHistory(prev => [...prev, { question, answer: final }]);
+      setQuestion("");
+    } catch (err) {
+      console.error("GPT error:", err);
+      setResponse("\u274c Error occurred. Please try again.");
+    }
+  };
+
+  const handleDIDSpeak = async () => {
+    if (!question) {
+      alert("\u26a0\ufe0f \u8bf7\u5148\u8f93\u5165\u4e00\u4e2a\u95ee\u9898\u3002");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: question })
+      });
+
+      const data = await res.json();
+
+      if (data?.streamUrl) {
+        window.open(data.streamUrl, "_blank");
+      } else {
+        alert("\u274c \u65e0\u6cd5\u83b7\u53d6 D-ID \u89c6\u9891\u6d41\u3002");
+      }
+    } catch (err) {
+      console.error("D-ID Speak Error:", err);
+      alert("\u274c D-ID \u51fa\u9519\u4e86\u3002");
+    }
+  };
+
+  useEffect(() => {
+    if (!("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    const handleMic = () => recognition.start();
+    recognition.onresult = (event) => {
+      const spoken = event.results[0][0].transcript;
+      setQuestion(spoken);
+      handleSubmit();
+    };
+    recognition.onerror = (event) => {
+      alert("\ud83c\udfa4 Speech recognition failed.");
+      console.error("Mic error:", event.error);
+    };
+
+    window.startVoiceInput = handleMic;
+  }, []);
 
   if (!loggedIn) {
     return (
@@ -43,108 +169,6 @@ export default function App() {
       </div>
     );
   }
-
-  // original IELTS app content starts here
-  const exams = [
-    { id: "ielts01", label: "📘 IELTS Academic Reading 1", pdf: "/exams/ielts/ielts01.pdf" },
-    { id: "ielts02", label: "📘 IELTS Academic Reading 2", pdf: "/exams/ielts/ielts02.pdf" },
-  ];
-
-  const [selectedExamId, setSelectedExamId] = useState("");
-  const [question, setQuestion] = useState("");
-  const [response, setResponse] = useState("");
-  const [history, setHistory] = useState([]);
-
-  const detectLang = (text) => /[\u4e00-\u9fa5]/.test(text) ? "zh-CN" : "en-GB";
-
-  const getVoiceForLang = (lang) => {
-    const voices = window.speechSynthesis.getVoices();
-    return voices.find(v => v.lang === lang) ||
-           voices.find(v => v.name.includes(lang === "zh-CN" ? "普通话" : "UK English Female"));
-  };
-
-  const speakMixed = (text) => {
-    const segments = text.split(/(?<=[。.!?])/).map(s => s.trim()).filter(Boolean);
-    let index = 0;
-    const speakNext = () => {
-      if (index >= segments.length) return;
-      const segment = segments[index++];
-      const utter = new SpeechSynthesisUtterance(segment);
-      const lang = detectLang(segment);
-      utter.lang = lang;
-      utter.voice = getVoiceForLang(lang);
-      utter.rate = 1;
-      utter.onend = speakNext;
-      speechSynthesis.speak(utter);
-    };
-    speechSynthesis.cancel();
-    speakNext();
-  };
-
-  const handleSubmit = async () => {
-    if (!question || !selectedExamId) {
-      alert("⚠️ Please enter a question and select an exam.");
-      return;
-    }
-
-    setResponse("Analyzing with GPT-4o, please wait...");
-
-    const totalPages = 13;
-    const messages = [
-      {
-        type: "text",
-        text: `You are an IELTS Academic Reading instructor. The student is working on test ${selectedExamId.toUpperCase()}. If they ask about a question (e.g., "Q5" or "paragraph B"), find the answer from the reading passage images and respond in academic English. Focus on the exact question asked. Do not summarize the passage unless requested.`,
-      },
-      { type: "text", text: question }
-    ];
-
-    for (let i = 1; i <= totalPages; i++) {
-      const url = `${window.location.origin}/exams/ielts/${selectedExamId}_page${i}.png`;
-      messages.push({ type: "image_url", image_url: { url } });
-    }
-
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: question, messages }),
-      });
-
-      const data = await res.json();
-      const english = data.response || "No response.";
-      const translated = data.translated || "无中文翻译。";
-
-      const final = `${english}\n\n🇨🇳 中文翻译：${translated}`;
-      setResponse(final);
-      setHistory(prev => [...prev, { question, answer: final }]);
-      setQuestion("");
-    } catch (err) {
-      console.error("GPT error:", err);
-      setResponse("❌ Error occurred. Please try again.");
-    }
-  };
-
-  useEffect(() => {
-    if (!("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) return;
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = "zh-CN";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    const handleMic = () => recognition.start();
-    recognition.onresult = (event) => {
-      const spoken = event.results[0][0].transcript;
-      setQuestion(spoken);
-      handleSubmit();
-    };
-    recognition.onerror = (event) => {
-      alert("🎤 Speech recognition failed.");
-      console.error("Mic error:", event.error);
-    };
-
-    window.startVoiceInput = handleMic;
-  }, []);
 
   return (
     <div className="p-6 bg-blue-100 min-h-screen text-gray-800">
@@ -179,7 +203,7 @@ export default function App() {
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="例如：What is the answer to Q18? 或者 Which paragraph mentions tourism in the Arctic?"
         />
-        <div className="mt-2 flex gap-3">
+        <div className="mt-2 flex gap-3 flex-wrap">
           <button
             onClick={handleSubmit}
             className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
@@ -191,6 +215,12 @@ export default function App() {
             className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded"
           >
             🎤 语音提问
+          </button>
+          <button
+            onClick={handleDIDSpeak}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+          >
+            🤖 D-ID 说话（播放头像视频）
           </button>
         </div>
       </div>
