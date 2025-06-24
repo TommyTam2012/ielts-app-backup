@@ -2,19 +2,12 @@
   "functions": {
     "api/speak.js": {
       "runtime": "nodejs18.x"
-    },
-    "api/analyze.js": {
-      "runtime": "nodejs18.x"
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
-    },
-    {
-      "source": "/",
-      "destination": "/index.html"
+      "src": "/api/speak",
+      "dest": "/api/speak.js"
     }
   ]
 }
