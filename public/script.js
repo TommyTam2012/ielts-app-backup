@@ -12,8 +12,11 @@ translationBox.style.fontSize = "0.95em";
 translationBox.style.color = "#333";
 responseBox.insertAdjacentElement("afterend", translationBox);
 
+// ✅ Patched setExam function: Opens IELTS PDF from /exam/IELTS/
 function setExam(examId) {
   console.log("📘 setExam called with:", examId);
+  const pdfUrl = `${window.location.origin}/exam/IELTS/${examId}.pdf`;
+  window.open(pdfUrl, "_blank");
 }
 
 function submitQuestion() {
