@@ -1,34 +1,5 @@
 console.log("🟢 script.js loaded successfully");
 
-// ✅ Logging to Upstash
-async function logToUpstash(name, email, action = "login") {
-  const hkTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Hong_Kong" });
-  const logKey = `log:${Date.now()}`;
-  const logValue = JSON.stringify({ name, email, action, time: hkTime });
-
-  const url = "https://firm-imp-16671.upstash.io/set/" + logKey;
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer AUEfAAIjcDFkMTBkNTFmYmIzM2I0ZGQwYTUzODk5NDI2YmZkNTMwZHAxMA",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(logValue)
-    });
-
-    if (res.ok) {
-      console.log("✅ Log stored in Upstash");
-    } else {
-      const text = await res.text();
-      throw new Error(`❌ Failed to log: ${text}`);
-    }
-  } catch (err) {
-    console.error("❌ Network error:", err);
-  }
-}
-
 const responseBox = document.getElementById("responseBox");
 const questionInput = document.getElementById("questionInput");
 const historyList = document.getElementById("historyList");
@@ -98,16 +69,22 @@ Only summarize the passage if the student requests it explicitly.
   fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: question, messages: imageMessages })
+    body: JSON.stringify({ messages: imageMessages })
   })
-    .then(res => res.json())
-    .then(data => {
-      const answer = data.response || "❌ 無法獲取英文回答。";
-      const translated = data.translated || "❌ 無法翻譯為中文。";
-      responseBox.textContent = answer;
-      translationBox.textContent = `🇨🇳 中文翻譯：${translated}`;
-      speakWithMyVoice(answer); // ✅ Use cloned voice here
-      addToHistory(question, `${answer}<br><em>🇨🇳 中文翻譯：</em>${translated}`);
+    .then(async res => {
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text);
+        const answer = data.response || "❌ 無法獲取英文回答。";
+        const translated = data.translated || "❌ 無法翻譯為中文。";
+        responseBox.textContent = answer;
+        translationBox.textContent = `🇨🇳 中文翻譯：${translated}`;
+        speakWithMyVoice(answer);
+        addToHistory(question, `${answer}<br><em>🇨🇳 中文翻譯：</em>${translated}`);
+      } catch (e) {
+        console.error("❌ Not JSON:", text);
+        responseBox.textContent = "❌ AI 回應錯誤。請稍後重試。";
+      }
     })
     .catch(err => {
       responseBox.textContent = "❌ 發生錯誤，請稍後重試。";
@@ -165,7 +142,9 @@ function getVoiceForLang(lang) {
 function chunkText(text, maxLength = 180) {
   const chunks = [];
   let current = '';
-  const parts = text.match(/[^。！？.!?\n]+[。！？.!?\n]?/g) || [text];
+  const parts = text.match(/[^。！？.!?
+]+[。！？.!?
+]?/g) || [text];
 
   for (const part of parts) {
     if ((current + part).length > maxLength) {
