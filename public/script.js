@@ -13,8 +13,8 @@ translationBox.style.color = "#333";
 responseBox.insertAdjacentElement("afterend", translationBox);
 
 let currentExamId = "";
+let currentAudio = null; // 🎧 Voice playback control
 
-// ✅ Updated to bypass popup blockers
 function setExam(examId) {
   currentExamId = examId;
   const pdfUrl = `/exam/IELTS/${examId}.pdf`;
@@ -82,13 +82,11 @@ Only summarize the passage if the student requests it explicitly.
     .then(data => {
       const answer = data.response || "❌ 無法獲取英文回答。";
       const translated = data.translated || "❌ 無法翻譯為中文。";
-      const didStream = data.didStreamUrl;
 
       responseBox.textContent = answer;
       translationBox.textContent = `🇨🇳 中文翻譯：${translated}`;
 
       speakWithMyVoice(answer);
-      if (didStream) switchToDIDStream(didStream);
 
       addToHistory(question, `${answer}<br><em>🇨🇳 中文翻譯：</em>${translated}`);
     })
@@ -106,7 +104,7 @@ function addToHistory(question, answer) {
   historyList.prepend(li);
 }
 
-// ✅ ElevenLabs Voice Integration
+// ✅ ElevenLabs Voice Integration with STOP + REPEAT
 async function speakWithMyVoice(text) {
   try {
     const res = await fetch("/api/speak", {
@@ -116,27 +114,38 @@ async function speakWithMyVoice(text) {
     });
 
     const data = await res.json();
-    if (data.didStreamUrl) {
-      switchToDIDStream(data.didStreamUrl);
-    }
 
     if (data.audioBase64) {
-      const audio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
-      audio.play();
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+
+      currentAudio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
+      currentAudio.play();
     }
+
   } catch (err) {
     console.error("🎤 Voice error:", err);
   }
 }
 
-// 🎥 D-ID Avatar Switching
-function switchToDIDStream(streamUrl) {
-  const iframe = document.getElementById("didVideo");
-  const staticAvatar = document.getElementById("avatarImage");
-  iframe.src = streamUrl;
-  iframe.style.display = "block";
-  staticAvatar.style.display = "none";
-  console.log("🎥 D-ID stream activated:", streamUrl);
+// 🛑 Stop playback
+function stopPlayback() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    console.log("⏹️ Playback stopped.");
+  }
+}
+
+// 🔁 Repeat playback
+function repeatPlayback() {
+  if (currentAudio) {
+    currentAudio.currentTime = 0;
+    currentAudio.play();
+    console.log("🔁 Playback restarted.");
+  }
 }
 
 // 🎤 Voice Input (Mic → Text → GPT)
@@ -208,9 +217,11 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
   });
 }
 
-// ✅ GLOBAL BINDINGS (after DOM ready)
+// ✅ GLOBAL BINDINGS
 document.addEventListener("DOMContentLoaded", () => {
   window.submitQuestion = submitQuestion;
   window.setExam = setExam;
   window.clearHistory = clearHistory;
+  window.stopPlayback = stopPlayback;
+  window.repeatPlayback = repeatPlayback;
 });
