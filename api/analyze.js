@@ -5,8 +5,6 @@ const openai = new OpenAI({
 });
 
 export default async function handler(req, res) {
-  console.log("🧠 /api/analyze triggered");
-
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -14,10 +12,8 @@ export default async function handler(req, res) {
   try {
     const { messages } = req.body;
 
-    if (!messages || !Array.isArray(messages) || !messages.some(m => m.type === "image_url")) {
-      return res.status(400).json({
-        error: "Missing or invalid 'messages' format. Expecting an array with at least one { type: 'image_url' }."
-      });
+    if (!Array.isArray(messages) || !messages.some(m => m.type === "image_url")) {
+      return res.status(400).json({ error: "Missing or invalid message format. Ensure it includes image_url blocks." });
     }
 
     console.log("📤 GPT Payload:", JSON.stringify(messages, null, 2));
@@ -47,9 +43,9 @@ Avoid vague answers. Always point to the passage location explicitly.
       ]
     });
 
-    const english = englishResponse.choices[0]?.message?.content?.trim() || "No English response received.";
+    const english = englishResponse.choices[0]?.message?.content?.trim() || "";
 
-    // Step 2: Translate to Simplified Chinese
+    // Step 2: Translate the response to Simplified Chinese
     const translationResponse = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -64,15 +60,15 @@ Avoid vague answers. Always point to the passage location explicitly.
       ]
     });
 
-    const translated = translationResponse.choices[0]?.message?.content?.trim() || "未能返回翻譯內容。";
+    const translated = translationResponse.choices[0]?.message?.content?.trim() || "";
 
     return res.status(200).json({ response: english, translated });
 
   } catch (error) {
-    console.error("💥 GPT Vision API error:", error);
+    console.error("GPT Vision API error:", error);
     return res.status(500).json({
       error: "Internal server error",
-      detail: error?.message || "Unknown GPT error"
+      detail: error.message || "Unknown GPT error"
     });
   }
 }
