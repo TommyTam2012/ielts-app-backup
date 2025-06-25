@@ -42,9 +42,11 @@ export default async function handler(req, res) {
     }
 
     const audioBuffer = await ttsRes.arrayBuffer();
-    const audioBase64 = Buffer.from(audioBuffer).toString("base64");
+    const base64Audio = Buffer.from(audioBuffer).toString("base64");
 
-    // ✅ Return only voice for now — no D-ID
+    // ✅ Add MIME prefix for compatibility
+    const audioBase64 = `data:audio/mpeg;base64,${base64Audio}`;
+
     res.status(200).json({
       audioBase64,
       didStreamUrl: null
