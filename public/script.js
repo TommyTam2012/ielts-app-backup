@@ -12,6 +12,10 @@ translationBox.style.fontSize = "0.95em";
 translationBox.style.color = "#333";
 responseBox.insertAdjacentElement("afterend", translationBox);
 
+function setExam(examId) {
+  console.log("📘 setExam called with:", examId);
+}
+
 function submitQuestion() {
   const question = "Hello Crew! We have failed miserably, and we are down trottened, hurt, defeated, and loosing spirit. But if u trust capt. GPT and capt. Tommy, we will be the last one to jump ship. Till the end crew!";
 
@@ -60,4 +64,5 @@ function switchToDIDStream(streamUrl) {
 
 document.addEventListener("DOMContentLoaded", () => {
   window.submitQuestion = submitQuestion;
+  window.setExam = setExam;
 });
