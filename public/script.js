@@ -104,7 +104,7 @@ function addToHistory(question, answer) {
   historyList.prepend(li);
 }
 
-// ✅ ElevenLabs Voice Integration with STOP + REPEAT
+// ✅ ElevenLabs Voice Integration with MIME fix + Stop/Repeat support
 async function speakWithMyVoice(text) {
   try {
     const res = await fetch("/api/speak", {
@@ -116,13 +116,32 @@ async function speakWithMyVoice(text) {
     const data = await res.json();
 
     if (data.audioBase64) {
+      // Stop any previous audio
       if (currentAudio) {
         currentAudio.pause();
         currentAudio.currentTime = 0;
       }
 
-      currentAudio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
-      currentAudio.play();
+      const audioSrc = data.audioBase64.startsWith("data:")
+        ? data.audioBase64
+        : `data:audio/mpeg;base64,${data.audioBase64}`;
+
+      currentAudio = new Audio(audioSrc);
+
+      currentAudio.onerror = (err) => {
+        console.error("🛑 Audio playback failed:", err);
+        alert("⚠️ Audio could not be played. Please try again.");
+      };
+
+      currentAudio.onended = () => {
+        console.log("✅ Playback finished.");
+      };
+
+      currentAudio.play().catch(err => {
+        console.error("🎧 Playback error:", err);
+      });
+    } else {
+      console.warn("⚠️ No audioBase64 returned.");
     }
 
   } catch (err) {
@@ -143,7 +162,9 @@ function stopPlayback() {
 function repeatPlayback() {
   if (currentAudio) {
     currentAudio.currentTime = 0;
-    currentAudio.play();
+    currentAudio.play().catch(err => {
+      console.error("🔁 Repeat error:", err);
+    });
     console.log("🔁 Playback restarted.");
   }
 }
