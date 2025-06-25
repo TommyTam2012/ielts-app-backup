@@ -14,11 +14,18 @@ responseBox.insertAdjacentElement("afterend", translationBox);
 
 let currentExamId = "";
 
+// ✅ Updated to bypass popup blockers
 function setExam(examId) {
   currentExamId = examId;
   const pdfUrl = `/exam/IELTS/${examId}.pdf`;
-  window.open(pdfUrl, "_blank");
-  console.log(`📘 Exam set to ${examId}`);
+
+  const newTab = window.open("about:blank", "_blank");
+  if (newTab) {
+    newTab.location.href = pdfUrl;
+    console.log(`📘 Opening: ${pdfUrl}`);
+  } else {
+    alert("⚠️ 請允許瀏覽器開啟新分頁。");
+  }
 }
 
 function clearHistory() {
@@ -69,22 +76,21 @@ Only summarize the passage if the student requests it explicitly.
   fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: imageMessages })
+    body: JSON.stringify({ prompt: question, messages: imageMessages })
   })
-    .then(async res => {
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        const answer = data.response || "❌ 無法獲取英文回答。";
-        const translated = data.translated || "❌ 無法翻譯為中文。";
-        responseBox.textContent = answer;
-        translationBox.textContent = `🇨🇳 中文翻譯：${translated}`;
-        speakWithMyVoice(answer);
-        addToHistory(question, `${answer}<br><em>🇨🇳 中文翻譯：</em>${translated}`);
-      } catch (e) {
-        console.error("❌ Not JSON:", text);
-        responseBox.textContent = "❌ AI 回應錯誤。請稍後重試。";
-      }
+    .then(res => res.json())
+    .then(data => {
+      const answer = data.response || "❌ 無法獲取英文回答。";
+      const translated = data.translated || "❌ 無法翻譯為中文。";
+      const didStream = data.didStreamUrl;
+
+      responseBox.textContent = answer;
+      translationBox.textContent = `🇨🇳 中文翻譯：${translated}`;
+
+      speakWithMyVoice(answer);
+      if (didStream) switchToDIDStream(didStream);
+
+      addToHistory(question, `${answer}<br><em>🇨🇳 中文翻譯：</em>${translated}`);
     })
     .catch(err => {
       responseBox.textContent = "❌ 發生錯誤，請稍後重試。";
@@ -100,7 +106,7 @@ function addToHistory(question, answer) {
   historyList.prepend(li);
 }
 
-// ✅ ✅ ✅ 🧠 ElevenLabs Voice Integration Below ✅ ✅ ✅
+// ✅ ElevenLabs Voice Integration
 async function speakWithMyVoice(text) {
   try {
     const res = await fetch("/api/speak", {
@@ -109,94 +115,31 @@ async function speakWithMyVoice(text) {
       body: JSON.stringify({ text })
     });
 
-    if (!res.ok) {
-      console.error("🛑 ElevenLabs TTS failed");
-      return;
+    const data = await res.json();
+    if (data.didStreamUrl) {
+      switchToDIDStream(data.didStreamUrl);
     }
 
-    const blob = await res.blob();
-    const audio = new Audio(URL.createObjectURL(blob));
-    audio.play();
+    if (data.audioBase64) {
+      const audio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
+      audio.play();
+    }
   } catch (err) {
     console.error("🎤 Voice error:", err);
   }
 }
 
-// ----------------- 🔊 TTS Engine (Fallback) -----------------
-function detectLang(text) {
-  return /[一-龥]/.test(text) ? "zh-CN" : "en-GB";
+// 🎥 D-ID Avatar Switching
+function switchToDIDStream(streamUrl) {
+  const iframe = document.getElementById("didVideo");
+  const staticAvatar = document.getElementById("avatarImage");
+  iframe.src = streamUrl;
+  iframe.style.display = "block";
+  staticAvatar.style.display = "none";
+  console.log("🎥 D-ID stream activated:", streamUrl);
 }
 
-let cachedVoices = [];
-window.speechSynthesis.onvoiceschanged = () => {
-  cachedVoices = speechSynthesis.getVoices();
-};
-
-function getVoiceForLang(lang) {
-  if (!cachedVoices.length) cachedVoices = speechSynthesis.getVoices();
-  return cachedVoices.find(v => v.lang === lang)
-    || cachedVoices.find(v => v.name.includes(lang.includes("zh") ? "普通话" : "English"))
-    || cachedVoices[0];
-}
-
-function chunkText(text, maxLength = 180) {
-  const chunks = [];
-  let current = '';
-  const parts = text.match(/[^。！？.!?
-]+[。！？.!?
-]?/g) || [text];
-
-  for (const part of parts) {
-    if ((current + part).length > maxLength) {
-      if (current) chunks.push(current.trim());
-      current = part;
-    } else {
-      current += part;
-    }
-  }
-
-  if (current) chunks.push(current.trim());
-  return chunks;
-}
-
-async function speakTextChunks(chunks, lang) {
-  for (let i = 0; i < chunks.length; i++) {
-    await new Promise(resolve => {
-      const utter = new SpeechSynthesisUtterance(chunks[i]);
-      utter.lang = lang;
-      utter.voice = getVoiceForLang(lang);
-      utter.rate = 1;
-      utter.onend = () => setTimeout(resolve, 250);
-      speechSynthesis.speak(utter);
-    });
-  }
-}
-
-async function speakMixed() {
-  speechSynthesis.cancel();
-
-  const english = responseBox.textContent.trim();
-  const chinese = translationBox.textContent.replace(/^🇨🇳 中文翻譯：/, "").trim();
-
-  const engChunks = chunkText(english);
-  const zhChunks = chunkText(chinese);
-
-  await speakTextChunks(engChunks, "en-GB");
-
-  setTimeout(() => {
-    speakTextChunks(zhChunks, "zh-CN");
-  }, 500);
-}
-
-document.getElementById("ttsBtn")?.addEventListener("click", () => {
-  speakMixed();
-});
-
-document.getElementById("stopTTSBtn")?.addEventListener("click", () => {
-  speechSynthesis.cancel();
-});
-
-// ----------------- 🎤 Voice Input -----------------
+// 🎤 Voice Input (Mic → Text → GPT)
 if (window.SpeechRecognition || window.webkitSpeechRecognition) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = new SpeechRecognition();
@@ -210,7 +153,7 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
   const maxRestarts = 3;
 
   recognition.onstart = () => {
-    micBtn.textContent = "🎤 正在录音... (松开发送)";
+    micBtn.textContent = "🎤 正在錄音... (松开发送)";
     console.log("🎙️ Mic started");
   };
 
@@ -221,24 +164,23 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
 
   recognition.onend = () => {
     if (isHoldingMic && restartCount < maxRestarts) {
-      console.log("🔁 Restarting mic (hold still active)");
+      console.log("🔁 Restarting mic");
       restartCount++;
       recognition.start();
     } else {
-      micBtn.textContent = "🎤 语音提问";
-      console.log("🛑 Mic released or max restarts reached");
+      micBtn.textContent = "🎤 語音提問";
       if (finalTranscript.trim()) {
         questionInput.value = finalTranscript;
         submitQuestion();
       } else {
-        console.log("⚠️ 没有检测到语音內容。");
+        console.log("⚠️ 沒有檢測到語音內容");
       }
     }
   };
 
   recognition.onerror = (event) => {
     console.error("🎤 Speech error:", event.error);
-    micBtn.textContent = "🎤 语音提问";
+    micBtn.textContent = "🎤 語音提問";
   };
 
   micBtn.addEventListener("mousedown", () => {
@@ -266,6 +208,9 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
   });
 }
 
-window.submitQuestion = submitQuestion;
-window.setExam = setExam;
-window.clearHistory = clearHistory;
+// ✅ GLOBAL BINDINGS (after DOM ready)
+document.addEventListener("DOMContentLoaded", () => {
+  window.submitQuestion = submitQuestion;
+  window.setExam = setExam;
+  window.clearHistory = clearHistory;
+});
