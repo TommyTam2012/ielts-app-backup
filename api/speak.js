@@ -1,29 +1,24 @@
-import { WebSocket } from "ws";
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  let text = "";
+  if (req.method === "POST") {
+    let body = "";
+    await new Promise((resolve, reject) => {
+      req.on("data", chunk => (body += chunk));
+      req.on("end", () => resolve());
+      req.on("error", err => reject(err));
+    });
+    const data = JSON.parse(body);
+    text = data.text;
+  }
+
+  const voiceId = "E2iXioKRyjSqJA8tUYsv"; // Your ElevenLabs voice ID
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+
+  if (!text || !elevenKey) {
+    return res.status(400).json({ error: "Missing input or ElevenLabs key." });
   }
 
   try {
-    const { text } = await req.json?.() || await new Promise((resolve, reject) => {
-      let body = "";
-      req.on("data", (chunk) => (body += chunk));
-      req.on("end", () => resolve(JSON.parse(body)));
-      req.on("error", (err) => reject(err));
-    });
-
-    const voiceId = "E2iXioKRyjSqJA8tUYsv";
-    const elevenKey = process.env.ELEVENLABS_API_KEY;
-    const didRawKey = process.env.DID_API_KEY;
-
-    if (!text || !elevenKey || !didRawKey) {
-      return res.status(400).json({ error: "Missing input, ElevenLabs key, or D-ID key." });
-    }
-
-    console.log("📥 Text received:", text);
-
-    // Step 1: Get TTS audio from ElevenLabs
     const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: "POST",
       headers: {
@@ -49,53 +44,14 @@ export default async function handler(req, res) {
     const audioBuffer = await ttsRes.arrayBuffer();
     const audioBase64 = Buffer.from(audioBuffer).toString("base64");
 
-    // Step 2: WebSocket to D-ID
-    const encoded = Buffer.from(didRawKey).toString("base64");
-
-    const ws = new WebSocket("wss://api.d-id.com/v1/talks/stream", {
-      headers: {
-        Authorization: `Basic ${encoded}`
-      }
+    // ✅ Return only voice for now — no D-ID
+    res.status(200).json({
+      audioBase64,
+      didStreamUrl: null
     });
 
-    let streamUrl = null;
-
-    ws.on("open", () => {
-      ws.send(
-        JSON.stringify({
-          script: {
-            type: "audio",
-            audio: audioBase64
-          },
-          config: {
-            stitch: true
-          }
-        })
-      );
-    });
-
-    ws.on("message", (msg) => {
-      const data = JSON.parse(msg.toString());
-      if (data?.stream_url) {
-        streamUrl = data.stream_url;
-        ws.close();
-      }
-    });
-
-    ws.on("error", (err) => {
-      console.error("💥 WebSocket error:", err);
-      res.status(500).json({ error: "WebSocket error", detail: err.message });
-    });
-
-    ws.on("close", () => {
-      if (streamUrl) {
-        res.status(200).json({ streamUrl });
-      } else {
-        res.status(500).json({ error: "D-ID failed to return stream_url" });
-      }
-    });
   } catch (err) {
     console.error("💥 Server error:", err);
-    return res.status(500).json({ error: "Server error", detail: err.message });
+    return res.status(500).json({ error: "TTS Server Error", detail: err.message });
   }
 }
