@@ -128,30 +128,78 @@
   <script src="/script.js"></script>
   <script>
     const overlay = document.getElementById("mouthOverlay");
-    let mouthAnimation;
+    let mouthAnimation = null;
 
-    document.getElementById("ttsBtn").addEventListener("click", () => {
-      const audio = new Audio("https://api.elevenlabs.io/samples/your-audio-file.mp3");
-      const analyser = new (window.AudioContext || window.webkitAudioContext)();
-      const source = analyser.createMediaElementSource(audio);
-      const analyserNode = analyser.createAnalyser();
-      source.connect(analyserNode);
-      analyserNode.connect(analyser.destination);
+    function animateMouth(audioElement) {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaElementSource(audioElement);
+      const analyser = audioContext.createAnalyser();
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
 
-      const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       function updateMouth() {
-        analyserNode.getByteFrequencyData(dataArray);
+        analyser.getByteFrequencyData(dataArray);
         const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         const scale = Math.min(avg / 128, 1);
         overlay.style.transform = `translateX(-50%) scaleY(${0.3 + scale * 0.7})`;
         mouthAnimation = requestAnimationFrame(updateMouth);
       }
 
-      audio.onended = () => cancelAnimationFrame(mouthAnimation);
+      audioElement.onplay = () => updateMouth();
+      audioElement.onended = () => {
+        cancelAnimationFrame(mouthAnimation);
+        overlay.style.transform = `translateX(-50%) scaleY(1)`;
+      };
+    }
 
-      audio.play();
-      updateMouth();
+    const originalSpeak = window.speakWithMyVoice;
+    window.speakWithMyVoice = async function (text) {
+      try {
+        const res = await fetch("/api/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+
+        const data = await res.json();
+
+        if (data.audioBase64) {
+          const audioSrc = data.audioBase64.startsWith("data:")
+            ? data.audioBase64
+            : `data:audio/mpeg;base64,${data.audioBase64}`;
+
+          if (window.currentAudio) {
+            window.currentAudio.pause();
+            window.currentAudio.currentTime = 0;
+          }
+
+          const audio = new Audio(audioSrc);
+          window.currentAudio = audio;
+          animateMouth(audio);
+          audio.play().catch(err => console.error("🎧 Playback error:", err));
+        }
+      } catch (err) {
+        console.error("🎤 Voice error:", err);
+      }
+    };
+
+    document.getElementById("ttsBtn").addEventListener("click", () => {
+      if (window.currentAudio) {
+        window.currentAudio.currentTime = 0;
+        window.currentAudio.play();
+        animateMouth(window.currentAudio);
+      }
+    });
+
+    document.getElementById("stopTTSBtn").addEventListener("click", () => {
+      if (window.currentAudio) {
+        window.currentAudio.pause();
+        window.currentAudio.currentTime = 0;
+        cancelAnimationFrame(mouthAnimation);
+        overlay.style.transform = `translateX(-50%) scaleY(1)`;
+      }
     });
   </script>
 </body>
