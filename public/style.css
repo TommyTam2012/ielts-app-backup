@@ -28,7 +28,7 @@ h1 {
 
 #mouthOverlay {
   position: absolute;
-  bottom: 120px; /* Updated for better alignment */
+  bottom: 160px; /* ✅ Adjusted to sit at the mouth */
   left: 50%;
   transform: translateX(-50%);
   width: 60px;
