@@ -1,8 +1,9 @@
-let mouthAnimation = null;
-const overlay = document.getElementById("mouthOverlay");
-const textInput = document.getElementById("textToSpeak");
-const responseBox = document.createElement("div");
+const audio = document.getElementById('audioPlayer');
+const mouth = document.getElementById('mouthOverlay');
+const textInput = document.getElementById('textToSpeak');
+const responseBox = document.createElement('div');
 
+// 📦 Style the GPT response box
 responseBox.style.marginTop = "20px";
 responseBox.style.fontSize = "18px";
 responseBox.style.color = "#003366";
@@ -11,7 +12,7 @@ responseBox.style.marginLeft = "auto";
 responseBox.style.marginRight = "auto";
 document.body.appendChild(responseBox);
 
-// 🧠 Call secure GPT API
+// 🎙️ Trigger GPT API for text response
 async function speak() {
   const userQuestion = textInput.value.trim();
   if (!userQuestion) {
@@ -30,12 +31,7 @@ async function speak() {
     });
 
     const data = await res.json();
-    if (data.answer) {
-      responseBox.textContent = data.answer;
-    } else {
-      responseBox.textContent = "⚠️ No answer returned.";
-    }
-
+    responseBox.textContent = data.answer || "⚠️ No answer returned.";
   } catch (err) {
     console.error("❌ GPT error:", err);
     responseBox.textContent = "❌ Failed to fetch response.";
@@ -44,11 +40,38 @@ async function speak() {
   }
 }
 
-// Placeholder buttons
+// 🦷 Animate mouth while audio is playing
+audio.addEventListener('play', () => {
+  mouth.style.opacity = 1;
+  mouth.style.animation = 'talking 0.25s infinite alternate ease-in-out'; // ✅ smoother
+});
+
+audio.addEventListener('ended', () => {
+  mouth.style.opacity = 0.2;
+  mouth.style.animation = 'none';
+});
+
+audio.addEventListener('pause', () => {
+  mouth.style.opacity = 0.2;
+  mouth.style.animation = 'none';
+});
+
+// 🔁 Repeat button logic
 function repeatPlayback() {
-  alert("🔁 Voice replay is disabled to conserve tokens.");
+  audio.currentTime = 0;
+  try {
+    audio.play();
+  } catch (err) {
+    console.warn("Playback error:", err);
+  }
 }
 
+// 🛑 Stop button logic
 function stopPlayback() {
-  alert("🛑 Voice playback is disabled in GPT-only mode.");
+  try {
+    audio.pause();
+    audio.currentTime = 0;
+  } catch (err) {
+    console.warn("Stop error:", err);
+  }
 }
