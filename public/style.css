@@ -16,9 +16,9 @@ h1 {
   width: 320px;
   height: 320px;
   margin: 30px auto;
-  padding: 0; /* ✅ Remove interference */
+  padding: 0;
   box-sizing: content-box;
-  border: 2px solid limegreen; /* 🟩 Debug border, optional */
+  border: 2px solid limegreen; /* 🟩 Optional debug border */
 }
 
 #avatarImage {
@@ -31,19 +31,19 @@ h1 {
 
 #mouthOverlay {
   position: absolute;
-  top: 72px; /* 🛠️ Adjust manually as needed */
+  top: 72px; /* ✅ Using top, not bottom */
   left: 50%;
   transform: translateX(-50%);
   width: 60px;
   height: 30px;
   background: #000;
   border-radius: 50%;
-  opacity: 0.5; /* 🧪 Temporary for visibility */
+  opacity: 0.5; /* 🧪 Visible for testing */
   z-index: 9999;
   transition: transform 0.05s ease-in-out;
   pointer-events: none;
   box-sizing: content-box;
-  border: 2px dashed red; /* 🔴 Visual alignment aid */
+  border: 2px dashed red; /* 🔴 Debug outline for alignment */
 }
 
 .controls {
