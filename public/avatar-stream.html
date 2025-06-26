@@ -74,6 +74,11 @@
       border-radius: 6px;
       border: 1px solid #ccc;
     }
+
+    @keyframes talking {
+      0% { transform: translateX(-50%) scaleY(1); }
+      100% { transform: translateX(-50%) scaleY(0.3); }
+    }
   </style>
 </head>
 <body>
@@ -98,46 +103,7 @@
 
   <textarea id="textToSpeak" placeholder="Enter text to speak..." rows="3"></textarea>
 
-  <script>
-    const audio = document.getElementById('audioPlayer');
-    const mouth = document.getElementById('mouthOverlay');
-
-    audio.addEventListener('play', () => {
-      mouth.style.opacity = 1;
-      mouth.style.animation = 'talking 0.1s infinite alternate';
-    });
-
-    audio.addEventListener('ended', () => {
-      mouth.style.opacity = 0.2;
-      mouth.style.animation = 'none';
-    });
-
-    audio.addEventListener('pause', () => {
-      mouth.style.opacity = 0.2;
-      mouth.style.animation = 'none';
-    });
-
-    // Placeholder functions
-    function speak() {
-      alert("🎙️ GPT+Voice not yet activated in this version.");
-    }
-
-    function repeatPlayback() {
-      audio.currentTime = 0;
-      audio.play();
-    }
-
-    function stopPlayback() {
-      audio.pause();
-      audio.currentTime = 0;
-    }
-  </script>
-
-  <style>
-    @keyframes talking {
-      0% { transform: translateX(-50%) scaleY(1); }
-      100% { transform: translateX(-50%) scaleY(0.3); }
-    }
-  </style>
+  <!-- 🧠 JS Logic Loaded from Separate File -->
+  <script src="/avatar-stream.js"></script>
 </body>
 </html>
