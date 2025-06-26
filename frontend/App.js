@@ -18,8 +18,8 @@ export default function App() {
   };
 
   const exams = [
-    { id: "ielts01", label: "\ud83d\udcd8 IELTS Academic Reading 1", pdf: "/exams/ielts/ielts01.pdf" },
-    { id: "ielts02", label: "\ud83d\udcd8 IELTS Academic Reading 2", pdf: "/exams/ielts/ielts02.pdf" },
+    { id: "ielts01", label: "\ud83d\udcd8 IELTS Academic Reading 1", pdf: "/exams/IELTS/ielts01.pdf" },
+    { id: "ielts02", label: "\ud83d\udcd8 IELTS Academic Reading 2", pdf: "/exams/IELTS/ielts02.pdf" },
   ];
 
   const detectLang = (text) => /[\u4e00-\u9fa5]/.test(text) ? "zh-CN" : "en-GB";
